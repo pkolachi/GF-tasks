@@ -4,9 +4,12 @@
 # a conditional distribution and its inverse
 
 from __future__ import division, print_function;
+import sys;
+
 import numpy as np;
-import random;
 import cvxpy as cvx;
+
+import phrasetable_utils as pt;
 
 
 def test():
@@ -57,7 +60,7 @@ def convex_cleanup(phrase_probs, lex_probs):
   lex_cost    = cvx.sum_entries(cvx.kl_div(sparse_dist, lex_probs));
   cost = phrase_cost+lex_cost+lambd*reg;
 
-  for reg_param in np.arange(0, 1, 0.01):
+  for reg_param in np.arange(0.6, 1, 0.01):
     lambd.value = reg_param;
     opt_instance = cvx.Problem(cvx.Minimize(cost), \
         [sparse_dist >= 0, # Positive probability values \
@@ -75,5 +78,25 @@ def tester():
     print(np.count_nonzero(new_dist), np.min(new_dist), np.max(new_dist));
   return;
 
-tester();
+def clean_dictionary(phrase_file):
+  lexicon = pt.getPhraseEntriesFromTable(phrase_file);
+  lexicon = pt.getLexiconEntries(phrase_file);
+
+  # Make it completely random. Which two distributions we choose to work with
+  direction = srctotext == True if np.random.random() <= 0.5 else False;
+  if direction:
+    entries = list((entry['srcphrase'], \
+                    entry['probValues'][0], \
+                    entry['probValues'][2]) \
+                  for entry in lexicon);
+  else:
+    entries = list((entry['tgtphrase'], \
+                    entry['probValues'][1], \
+                    entry['probValues'][3]) \
+                  for entry in lexicon);
+  return;
+
+if __name__ == '__main__':
+  #tester();
+  clean_dictionary(sys.argv[1]);
 
