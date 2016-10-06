@@ -68,7 +68,7 @@ def convex_cleanup(phrase_probs, lex_probs, group_indices):
       # making this a constraint seems to slow down the optimizer, 
       # adding this to cost instead;
       ];
-  for reg_param in np.arange(0.6, 0.65, 0.1):
+  for reg_param in np.arange(0.0, 1.0, 0.05):
     lambd.value = reg_param;
     opt_instance = cvx.Problem(cvx.Minimize(cost), constraints);
     opt_instance.solve();
@@ -88,7 +88,7 @@ def tester():
 
 def clean_dictionary(phrase_file):
   lexicon = pt.getPhraseEntriesFromTable(phrase_file);
-  #lexicon = filter(pt.filterLex, lexicon);
+  lexicon = filter(pt.filterLex, lexicon);
   entries = list((entry['srcphrase'], entry['tgtphrase'], \
       entry['probValues'][0], entry['probValues'][1], \
       entry['probValues'][2], entry['probValues'][3]) \
@@ -118,12 +118,17 @@ def clean_dictionary(phrase_file):
   groups = groups.tocsc();
 
   sparse_dists = convex_cleanup(pprobs, lprobs, groups);
+  global_sol = None;
+  global_entropy = -100
   for dist in sparse_dists:
     solution = dist.value;
     entropy  = cvx.sum_entries(cvx.entr(solution)).value;
-    print(np.count_nonzero(solution), np.min(solution), np.max(solution), entropy);
-    solution = list(solution.getA1());
+    if entropy > global_entropy:
+      global_sol = solution;
+    print(np.count_nonzero(solution), np.min(solution), np.max(solution), entropy, file=stderr);
+    #solution = list(solution.getA1());
 
+  global_sol = list(global_sol.getA1());
   groups = groups.todok();
   pruned_dictionary = ("%s\t%s\t%.4f" %(entries[key[1]][0], \
       entries[key[1]][1], \
