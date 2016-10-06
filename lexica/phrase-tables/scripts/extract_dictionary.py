@@ -4,7 +4,6 @@
 # a conditional distribution and its inverse
 
 from __future__ import division, print_function;
-import sys;
 
 import numpy as np;
 import cvxpy as cvx;
@@ -58,7 +57,7 @@ def convex_cleanup(phrase_probs, lex_probs):
 
   phrase_cost = cvx.sum_entries(cvx.kl_div(sparse_dist, phrase_probs));
   lex_cost    = cvx.sum_entries(cvx.kl_div(sparse_dist, lex_probs));
-  cost = phrase_cost+lex_cost+lambd*reg;
+  cost = phrase_cost+lex_cost+reg*lambd;
 
   for reg_param in np.arange(0.6, 1, 0.01):
     lambd.value = reg_param;
@@ -94,9 +93,11 @@ def clean_dictionary(phrase_file):
                     entry['probValues'][1], \
                     entry['probValues'][3]) \
                   for entry in lexicon);
+
+    print(len(entries));
   return;
 
 if __name__ == '__main__':
   #tester();
-  clean_dictionary(sys.argv[1]);
+  clean_dictionary(sysargv[1]);
 
