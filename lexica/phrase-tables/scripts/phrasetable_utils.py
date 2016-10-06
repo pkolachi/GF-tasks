@@ -7,11 +7,11 @@ from globalimports import *;
 import random_utils;
 
 def parseentry(entry, \
-    fields=['srcphrase', 'tgtphrase', 'probValues', 'alignments', 'counts'],\
+    pfields=['srcphrase', 'tgtphrase', 'probValues', 'alignments', 'counts'],\
     delimiter='|||'):
   fields = entry.split(delimiter);
   phrase = defaultdict(lambda: '');
-  for field, value in zip(fields, \
+  for field, value in zip(pfields, \
       map(string.strip, filter(None, fields))):
     if field == 'probValues':
       phrase[field.strip()] = tuple(map(float, value.split()));
@@ -80,7 +80,7 @@ def getPhraseBlocksFromTable(phraseTableFile, entryParser=None):
 def getLexiconEntries(phraseTableFile, entryParser=None):
   entryParser = parseentry if not entryParser else entryParser;
   fields = ['srcphrase', 'tgtphrase', 'logprob', 'pmival', 'pmivalvar'];
-  return imap(entryParser, random_utils.lines_from_file(phraseTableFile), replicate(fields), replicate('\t'));
+  return map(entryParser, random_utils.lines_from_file(phraseTableFile), replicate(fields), replicate('\t'));
 
 def pruneTableByLogProb(tableIter, paramValues, K=10000):
   probminValue, probmaxValue = 0, 1;
