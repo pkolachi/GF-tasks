@@ -9,6 +9,7 @@ import numpy as np;
 import scipy.sparse as sparse;
 import cvxpy as cvx;
 
+import random_utils;
 import phrasetable_utils as pt;
 
 def test():
@@ -59,12 +60,15 @@ def convex_cleanup(phrase_probs, lex_probs, group_indices):
   reg   = cvx.norm(sparse_dist, 1);
   phrase_cost = cvx.sum_entries(cvx.kl_div(sparse_dist, phrase_probs));
   lex_cost    = cvx.sum_entries(cvx.kl_div(sparse_dist, lex_probs));
-  cost = phrase_cost+lex_cost+reg*lambd;
+  prob_violations = cvx.sum_entries(group_indices*sparse_dist-marginals);
+  cost = phrase_cost+lex_cost+reg*lambd+prob_violations;
   constraints = [sparse_dist >= 0, # Positive probability values \
-      cvx.sum_entries(group_indices*sparse_dist) == marginals.T, \
+      # cvx.sum_entries(group_indices*sparse_dist) == marginals.T, \
       # Sum of probabilities is 1 \
+      # making this a constraint seems to slow down the optimizer, 
+      # adding this to cost instead;
       ];
-  for reg_param in np.arange(0.6, 1, 0.01):
+  for reg_param in np.arange(0.6, 0.65, 0.1):
     lambd.value = reg_param;
     opt_instance = cvx.Problem(cvx.Minimize(cost), constraints);
     opt_instance.solve();
@@ -84,43 +88,50 @@ def tester():
 
 def clean_dictionary(phrase_file):
   lexicon = pt.getPhraseEntriesFromTable(phrase_file);
-  lexicon = filter(pt.filterLex, lexicon);
+  #lexicon = filter(pt.filterLex, lexicon);
+  entries = list((entry['srcphrase'], entry['tgtphrase'], \
+      entry['probValues'][0], entry['probValues'][1], \
+      entry['probValues'][2], entry['probValues'][3]) \
+      for entry in lexicon);
 
   # Make it completely random. Which two distributions we choose to work with
-  direction = True if np.random.random() <= 0.5 else False;
+  #direction = True if np.random.random() <= 0.5 else False;
+  direction = True;
   if direction:
     #srctotgt
-    entries = list((entry['srcphrase'], \
-                    entry['probValues'][0], \
-                    entry['probValues'][2]) \
-                    for entry in lexicon);
+    pprobs = np.asarray([X[2] for X in entries]);
+    lprobs = np.asarray([X[4] for X in entries]);
+    vocab  = set(X[0] for X in entries);
+    index  = 0;
   else:
     #tgttosrc
-    entries = list((entry['tgtphrase'], \
-                    entry['probValues'][1], \
-                    entry['probValues'][3]) \
-                    for entry in lexicon);
+    pprobs = np.asarray([X[3] for X in entries]);
+    lprobs = np.asarray([X[5] for X in entries]);
+    vocab  = set(X[1] for X in entries);
+    index  = 1;
 
-  # Phrase probs
-  pprobs = np.asarray([X[1] for X in entries]);
-  lprobs = np.asarray([X[2] for X in entries]);
-  # Group by phrase;
-  indices = counter();
-  vocab = {};
-  for X in entries:
-    if X[0] not in vocab:
-      vocab[X[0]] = next(indices);
+  vocab  = sorted(list(vocab));
+  vocab  = dict((phrase, idx) for idx, phrase in enumerate(vocab));
   groups = sparse.dok_matrix((len(vocab), len(entries)), dtype=float);
   for idx, entry in enumerate(entries):
-    groups[vocab[entry[0]], idx] = 1;
+    groups[vocab[entry[index]], idx] = 1;
   groups = groups.tocsc();
-  print(type(pprobs));
-  print(type(lprobs));
-  print(type(groups));
+
   sparse_dists = convex_cleanup(pprobs, lprobs, groups);
   for dist in sparse_dists:
     solution = dist.value;
-    print(np.count_nonzero(solution), np.min(solution), np.max(solution));
+    entropy  = cvx.sum_entries(cvx.entr(solution)).value;
+    print(np.count_nonzero(solution), np.min(solution), np.max(solution), entropy);
+    solution = list(solution.getA1());
+
+  groups = groups.todok();
+  pruned_dictionary = ("%s\t%s\t%.4f" %(entries[key[1]][0], \
+      entries[key[1]][1], \
+      prob) \
+      for key, prob in zip(sorted(groups.keys()), solution));
+
+  random_utils.lines_to_file('', pruned_dictionary);
+
   return;
 
 if __name__ == '__main__':
